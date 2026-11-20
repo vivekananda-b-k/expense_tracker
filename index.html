@@ -52,7 +52,7 @@ function nxt(d){const n=new Date(),t0=new Date(n.getFullYear(),n.getMonth(),n.ge
 const dt=t=>t.toLocaleDateString("en-IN",{day:"numeric",month:"short"});
 function inp(p,l,type="number",ph="0"){return`<div><label>${l}</label><input data-p="${p}" type="${type}" inputmode="${type=="number"?"decimal":"text"}" placeholder="${ph}" value="${esc(get(p))}"></div>`}
 const row=(a,b,c="")=>`<div class="r"><span>${a}</span><b class="${c}">${b}</b></div>`;
-function save(){clearTimeout(tm);$("#st").textContent="Saving…";tm=setTimeout(async()=>{S._t=Date.now();const j=JSON.stringify(S);try{localStorage.setItem("mt",j)}catch(e){}
+function save(){clearTimeout(tm);$("#st").textContent="Saving…";tm=setTimeout(async()=>{S._t=Date.now();S._dirty=true;const j=JSON.stringify(S);try{localStorage.setItem("mt",j)}catch(e){}
 try{if(ref){await ref.set({s:j});$("#st").textContent="Saved to your account"}else $("#st").textContent="Saved on this device only"}catch(e){$("#st").textContent="Saved on this device only"}if(KEY)await push()},600)}
 function incBlock(){const r=(S.m[cur]||{}).inc||[],ns=[...new Set(Object.values(S.m).flatMap(x=>(x.inc||[]).map(i=>i.n)).filter(Boolean))];
 return`<div class="c"><h2>Income by family member</h2><datalist id="nm">${ns.map(n=>`<option value="${esc(n)}">`).join("")}</datalist>${r.map((x,i)=>`<div class="f" style="align-items:end;margin-bottom:8px"><div><label>Who / source</label><input list="nm" data-p="m.inc.${i}.n" value="${esc(x.n)}" placeholder="e.g. Vivek salary"></div>${inp("m.inc."+i+".a","Amount")}<div><button class="x" onclick="delInc(${i})">× Remove</button></div></div>`).join("")||'<p class="mu">No income yet. Add each earner below.</p>'}<button class="b" onclick="addInc()">+ Add earner</button></div>`}
@@ -122,7 +122,7 @@ if(b.pd){if(b.pm==cur)pd.push(`<div class="r"><span>${nm}<br><small class="pos">
 else if(k<cur)un.push(`<div class="r"><span>${nm}<br><small class="wn">Have you paid this bill?</small></span><span><b>${fm(b.s)}</b> <button class="b" onclick="payBill('${k}','${c.id}')">Mark paid</button></span></div>`);
 else if(k==cur)cu.push(`<div class="r"><span>${nm}<br><small class="mu">Due next month</small></span><b>${fm(b.s)}</b></div>`)}));
 return`<div class="c"><h2>Credit card bills</h2><small class="mu">Each month’s bill is paid in the following month. Bill payments are not expenses, because the spends are already counted above. Enter statement amounts on the Credit cards tab.</small>${un.join("")||'<p class="mu">No earlier bills waiting to be marked paid.</p>'}${pd.join("")}${cu.join("")}${row("Card bills paid this month",fm(paidIn(cur)))}<small class="mu">Include this amount in your bank account’s Money out.</small></div>`}
-let sm="";const hasData=()=>S.cards.length+S.inv.length+S.loans.length+S.banks.length+S.gold.length+S.prop.length+Object.keys(S.m).length>0;
+let sm="";const hasData=()=>S.cards.length+S.inv.length+S.loans.length+S.banks.length+S.gold.length+S.prop.length+S.events.length+Object.keys(S.m).length>0;
 const SYNC_URL="https://script.google.com/macros/s/AKfycbzXjCAXz9L_bvTVGhBe2towFXvVMIH8VAUpWWTbUfX1eHHaU2WVY52w53Yw6OCd71ODiQ/exec";let KEY="";const syncCfg=()=>({url:SYNC_URL,key:KEY});
 function ask(msg){return new Promise(res=>{const d=document.createElement("div");d.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:99;padding:16px";
 d.innerHTML=`<div class="c" style="max-width:360px;width:100%"><h2>Unlock Google Sheet sync</h2><p class="mu">${esc(msg||"Enter your secret key. It is not stored on this device.")}</p><input id="pw" type="password" autocomplete="off" placeholder="Secret key"><p><button class="b" id="pu">Unlock</button> <button class="x" style="font-size:14px;color:var(--mu)" id="ps">Skip sync</button></p></div>`;
@@ -133,9 +133,25 @@ async function unlockNow(){await unlock();render()}
 function lockNow(){KEY="";sm="Locked. Changes stay on this device until you unlock.";render()}
 async function pullNow(){sm="Connecting…";render();await pull();render()}
 async function pushNow(){sm="Saving…";render();await push();render()}
-async function pull(){const c=syncCfg();if(!c.url||!c.key)return;try{const r=await fetch(c.url+"?token="+encodeURIComponent(c.key)),j=await r.json();if(!j.ok)throw new Error(j.error);
-if(!j.data){if(hasData())await push();return}const d=JSON.parse(j.data);if(num(d._t)>num(S._t)||!hasData()){S=Object.assign(S,d);migrate();try{localStorage.setItem("mt",JSON.stringify(S))}catch(e){}sm="Loaded the latest data from your Google Sheet."}else sm="Connected. This device already has the latest data."}catch(e){sm="Could not reach the Google Sheet ("+e.message+"). Using the data on this device."}}
-async function push(){const c=syncCfg();if(!c.url||!c.key)return;try{S._t=S._t||Date.now();const r=await fetch(c.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({token:c.key,data:JSON.stringify(S),sheets:sheetsOut()})}),j=await r.json();if(!j.ok)throw new Error(j.error);sm="Saved to your Google Sheet at "+new Date().toLocaleTimeString("en-IN");$("#st").textContent="Saved to your Google Sheet"}catch(e){sm="Sync failed ("+e.message+"). Your data is safe on this device.";$("#st").textContent="Saved on this device only (sync failed)"}}
+function pk(it,p){return "pay|"+it.id+"|"+p.d+"|"+p.a}
+function mArr(l,r,dl,nest){l=(l||[]).filter(x=>!dl.has(x.id));r=r||[];const ids=new Set(l.map(x=>x.id));r.forEach(x=>{if(!dl.has(x.id)&&!ids.has(x.id))l.push(x)});if(nest)l.forEach(x=>{const y=r.find(z=>z.id===x.id);if(y)nest(x,y,dl)});return l}
+function nEv(x,y,dl){x.items=mArr(x.items,y.items,dl,(a,b)=>{const ks=new Set((a.pay||[]).map(p=>p.d+"|"+p.a));a.pay=(a.pay||[]).concat((b.pay||[]).filter(p=>!ks.has(p.d+"|"+p.a))).filter(p=>!dl.has(pk(a,p)))})}
+function mObj(l,r,d){for(const k in r){if(!(k in l))l[k]=r[k];else if(d>0&&l[k]&&r[k]&&typeof l[k]=="object"&&typeof r[k]=="object"&&!Array.isArray(l[k]))mObj(l[k],r[k],d-1)}return l}
+function mergeIn(r){const dl=new Set((S.dl||[]).concat(r.dl||[]));S.dl=[...dl];
+["cards","inv","loans","gold","prop","banks","events"].forEach(k=>{S[k]=mArr(S[k],r[k],dl,k=="events"?nEv:null)});
+["m","bills","bk","ll"].forEach(k=>{S[k]=mObj(S[k]||{},r[k]||{},3)});
+["gr","sr","cb"].forEach(k=>{if(!num(S[k]))S[k]=r[k]??S[k]});
+if(Array.isArray(r.b)){const b=S.b||[];S.b=r.b.map((v,i)=>b[i]!==undefined&&b[i]!==""?b[i]:v)}}
+async function pull(){const c=syncCfg();if(!c.url||!c.key)return;try{const g=await(await fetch(c.url+"?token="+encodeURIComponent(c.key))).json();if(!g.ok)throw new Error(g.error);
+if(!g.data){if(hasData())await push();else sm="Connected. Nothing saved in the Sheet yet.";return}
+const d=JSON.parse(g.data);
+if(!hasData()){S=Object.assign(S,d);S._base=num(d._v);S._dirty=false;try{localStorage.setItem("mt",JSON.stringify(S))}catch(e){}sm="Loaded the latest data from your Google Sheet."}
+else if(num(d._v)>num(S._base)){mergeIn(d);S._base=num(d._v);try{localStorage.setItem("mt",JSON.stringify(S))}catch(e){}sm="Merged the latest data from your Google Sheet.";if(S._dirty)await push()}
+else{sm="Connected. This device already has the latest data.";if(S._dirty)await push()}}catch(e){sm="Could not reach the Google Sheet ("+e.message+"). Using the data on this device."}}
+async function push(){const c=syncCfg();if(!c.url||!c.key)return;try{const g=await(await fetch(c.url+"?token="+encodeURIComponent(c.key))).json();if(!g.ok)throw new Error(g.error);let nv=num(S._base);
+if(g.data){const d=JSON.parse(g.data);nv=Math.max(nv,num(d._v));if(num(d._v)>num(S._base)){mergeIn(d);render()}}
+S._v=nv+1;S._t=Date.now();const r=await fetch(c.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({token:c.key,data:JSON.stringify(S),sheets:sheetsOut()})}),j=await r.json();if(!j.ok)throw new Error(j.error);
+S._base=S._v;S._dirty=false;try{localStorage.setItem("mt",JSON.stringify(S))}catch(e){}sm="Saved to your Google Sheet at "+new Date().toLocaleTimeString("en-IN");$("#st").textContent="Saved to your Google Sheet"}catch(e){sm="Sync failed ("+e.message+"). Your data is safe on this device.";$("#st").textContent="Saved on this device only (sync failed)"}}
 function sheetsOut(){const nk=new Date().toISOString().slice(0,7),R=n=>Math.round(num(n)),P=(h,r)=>[h].concat(r);
 const M=Object.keys(S.m).sort().map(k=>{const t=mt(k);return[k,R(t.inc),R(t.cat),R(t.cc),R(t.e),R(t.emi),R(t.inv),R(t.sur),R(t.saved),Math.round(t.rate*1000)/10]});
 return{Monthly:P(["Month","Income","Category spends","Credit card spends","Total expenses","Loan EMIs","Invested","Surplus cash","Total saved","Savings rate %"],M),
@@ -156,11 +172,11 @@ function addEvent(){if(!v("evn"))return;upsert("events",{name:v("evn"),type:v("e
 function addEvItem(ei){const e=S.events[ei],g=n=>v(n+ei),o={cat:g("ecat"),vendor:g("ev"),total:g("et"),due:g("ef"),notes:g("eno")};if(!num(o.total)&&!o.vendor)return;
 if(ed.k=="evitem"&&ed.ei==ei&&(e.items||[])[ed.ii])Object.assign(e.items[ed.ii],o);else{o.id=uid();o.pay=num(g("ea"))?[{d:g("ead")||today(),a:num(g("ea"))}]:[];(e.items??=[]).push(o)}ed={};save();render()}
 function editEvItem(ei,ii){ed={k:"evitem",ei,ii};render();const it=S.events[ei].items[ii];$("#ecat"+ei).value=it.cat;$("#ev"+ei).value=it.vendor||"";$("#et"+ei).value=it.total;$("#ef"+ei).value=it.due||"";$("#eno"+ei).value=it.notes||""}
-function delEvItem(ei,ii){if(!confirm("Delete this expense?"))return;S.events[ei].items.splice(ii,1);ed={};save();render()}
+function delEvItem(ei,ii){if(!confirm("Delete this expense?"))return;const x=S.events[ei].items[ii];if(x&&x.id)(S.dl??=[]).push(x.id);S.events[ei].items.splice(ii,1);ed={};save();render()}
 function okDate(d){return /^\d{4}-\d{2}-\d{2}$/.test(d||"")}
 function addPay(ei,ii){const it=S.events[ei].items[ii],a=prompt("Amount paid (₹)");if(!a||!num(a))return;const d=prompt("Payment date (YYYY-MM-DD)",today());if(!okDate(d)){alert("Please use the format YYYY-MM-DD.");return}(it.pay??=[]).push({d,a:num(a)});save();render()}
 function settle(ei,ii){const it=S.events[ei].items[ii],r=evRem(it),d=prompt("Final settlement date (YYYY-MM-DD). This records the remaining "+fm(r)+" as paid.",today());if(!okDate(d))return;(it.pay??=[]).push({d,a:r});save();render()}
-function delPay(ei,ii,pi){if(!confirm("Delete this payment?"))return;S.events[ei].items[ii].pay.splice(pi,1);save();render()}
+function delPay(ei,ii,pi){if(!confirm("Delete this payment?"))return;const it=S.events[ei].items[ii];(S.dl??=[]).push(pk(it,it.pay[pi]));it.pay.splice(pi,1);save();render()}
 function itemRow(e,ei,it,ii){const paid=evPaid(it),rem=evRem(it),dd=it.due?dayDiff(it.due):null,st=rem<=0&&num(it.total)>0?'<span class="pos">Settled</span>':dd!==null&&dd<0?'<span class="neg">Overdue</span>':dd!==null&&dd<=7?'<span class="wn">Due soon</span>':'<span class="mu">Pending</span>';
 return`<div class="r" style="display:block"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(it.vendor||it.cat)} <small class="mu">${esc(it.cat)}</small></b><b>${fm(it.total)}</b></div><small>Paid ${fm(paid)} · Remaining <b class="${rem>0?"wn":"pos"}">${fm(rem)}</b> · Final settlement ${fmtD(it.due)} · ${st}</small>${(it.pay||[]).map((p,pi)=>`<div class="mu" style="font-size:12px;display:flex;justify-content:space-between"><span>${pi==0?"Advance":"Payment"} · ${fmtD(p.d)}</span><span>${fm(p.a)} <button class="x" style="font-size:14px" onclick="delPay(${ei},${ii},${pi})">×</button></span></div>`).join("")}${it.notes?`<small class="mu">${esc(it.notes)}</small><br>`:""}<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><button class="b" style="padding:5px 10px" onclick="addPay(${ei},${ii})">+ Payment</button>${rem>0?`<button class="b" style="padding:5px 10px;background:var(--ok)" onclick="settle(${ei},${ii})">Mark settled</button>`:""}<button class="x" style="color:var(--ac);font-size:15px" onclick="editEvItem(${ei},${ii})">✎</button><button class="x" onclick="delEvItem(${ei},${ii})">×</button></div></div>`}
 function eventCard(e,ei){const s=evSum(e),its=e.items||[],over=num(e.max)&&s.tot>num(e.max),dd=e.date?dayDiff(e.date):null,nd=its.filter(i=>evRem(i)>0&&i.due).map(i=>i.due).sort()[0],ee=ed.k=="evitem"&&ed.ei==ei,F=(n,l,t,x)=>`<div><label>${l}</label><input id="${n}${ei}" type="${t||"text"}" ${x||""}></div>`;
@@ -222,7 +238,7 @@ if(tab=="cards"){S.cards.forEach(c=>{const e=$("#bs"+c.id);if(e)e.innerHTML=bill
 L.innerHTML="<h2>Reconciliation for "+cur+"</h2>"+row("Card statements",fm(st))+row("Bills paid this month (earlier statements)",fm(pd))+row("Unpaid bills so far",fm(unpaidAll(k=>k<=cur)),unpaidAll(k=>k<cur)?"wn":"")+row("Card spend you logged",fm(t.cc))+row("Card spend budget",fm(cb))+row("Budget left",fm(cb-st),cb-st<0?"neg":"pos")+row("Statements vs logged (cycle timing)",fm(st-t.cc))+'<small class="mu">Billing cycles do not match calendar months, so a small gap is normal and should even out over a few months.</small>'}}
 function render(){$("#nav").innerHTML=Object.entries(TABS).map(([k,v])=>`<button class="${k==tab?"on":""}" onclick="go('${k}')">${v}</button>`).join("");$("#v").innerHTML=views[tab]();live()}
 function go(k){tab=k;ed={};render()}
-function del(k,i){ed={};S[k].splice(i,1);save();render()}
+function del(k,i){ed={};const x=S[k][i];if(x&&x.id)(S.dl??=[]).push(x.id);S[k].splice(i,1);save();render()}
 const v=id=>$("#"+id).value,uid=()=>"i"+Math.random().toString(36).slice(2,8);
 function addInc(){const m=S.m[cur]??={};(m.inc??=[]).push({n:"",a:""});save();render()}
 function delInc(i){S.m[cur].inc.splice(i,1);save();render()}
