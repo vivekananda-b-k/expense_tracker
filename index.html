@@ -77,8 +77,6 @@ function nxt(d){const n=new Date(),t0=new Date(n.getFullYear(),n.getMonth(),n.ge
 const dt=t=>t.toLocaleDateString("en-IN",{day:"numeric",month:"short"});
 function inp(p,l,type="number",ph="0"){return`<div><label>${l}</label><input data-p="${p}" type="${type}" inputmode="${type=="number"?"decimal":"text"}" placeholder="${ph}" value="${esc(get(p))}"></div>`}
 const row=(a,b,c="")=>`<div class="r"><span>${a}</span><b class="${c}">${b}</b></div>`;
-function save(){rev++;clearTimeout(tm);$("#st").textContent="Saving…";tm=setTimeout(async()=>{S._t=Date.now();S._dirty=true;const j=JSON.stringify(S);try{localStorage.setItem("mt",j)}catch(e){}
-try{if(ref){await ref.set({s:j});$("#st").textContent="Saved to your account"}else $("#st").textContent="Saved on this device only"}catch(e){$("#st").textContent="Saved on this device only"}if(KEY)await pushQ()},600)}
 function incBlock(){const r=(S.m[cur]||{}).inc||[],ns=[...new Set(Object.values(S.m).flatMap(x=>(x.inc||[]).map(i=>i.n)).filter(Boolean))];
 return`<div class="c"><h2>Income by family member</h2><datalist id="nm">${ns.map(n=>`<option value="${esc(n)}">`).join("")}</datalist>${r.map((x,i)=>`<div class="f" style="align-items:end;margin-bottom:8px"><div><label>Who / source</label><input list="nm" data-p="m.inc.${i}.n" value="${esc(x.n)}" placeholder="e.g. Vivek salary"></div>${inp("m.inc."+i+".a","Amount")}<div><button class="x" onclick="delInc(${i})">× Remove</button></div></div>`).join("")||'<p class="mu">No income yet. Add each earner below.</p>'}<button class="b" onclick="addInc()">+ Add earner</button></div>`}
 function spendBlock(){const none=t=>`<p class="mu">${t}</p>`;
@@ -155,7 +153,44 @@ function bar(){return`<div class="c" style="display:flex;gap:8px;align-items:cen
 async function verify(){if(!KEY||sm.startsWith("Sync failed"))return;try{const g=await(await fetch(SYNC_URL+"?token="+encodeURIComponent(KEY))).json();if(!g.ok||!g.data)return;const d=JSON.parse(g.data),n=x=>(x.events||[]).length,it=x=>(x.events||[]).reduce((a,e)=>a+(e.items||[]).length,0);
 sm=(n(d)==n(S)&&it(d)==it(S))?"Saved and checked at "+new Date().toLocaleTimeString("en-IN")+". The Sheet has "+n(d)+" event(s) and "+it(d)+" expense(s).":"Warning: the Sheet has "+n(d)+" event(s) and "+it(d)+" expense(s), but this device has "+n(S)+" and "+it(S)+". Tap Save again."}catch(e){}}
 async function saveNow(){setTb("Saving…");if(!KEY){await unlock("Enter your secret key to save to the Sheet.");if(!KEY){render();return}}S._dirty=true;await pushQ();await verify();render()}
-async function refreshNow(){setTb("Refreshing…");if(!KEY){await unlock("Enter your secret key to refresh from the Sheet.");if(!KEY){render();return}}await pull();render()}
+let BASE=(()=>{try{return JSON.parse(localStorage.getItem("mt_base")||"null")}catch(e){return null}})(),arBusy=false;
+const persistLocal=()=>{try{localStorage.setItem("mt",JSON.stringify(S))}catch(e){}};
+const cleanOf=o=>{const c=JSON.parse(JSON.stringify(o));delete c.ui;delete c.dl;for(const k of Object.keys(c))if(k[0]=="_")delete c[k];return c};
+const canon=v=>Array.isArray(v)?"["+v.map(canon).join(",")+"]":(v&&typeof v=="object")?"{"+Object.keys(v).sort().map(k=>JSON.stringify(k)+":"+canon(v[k])).join(",")+"}":JSON.stringify(v===undefined?null:v);
+const eq=(a,b)=>canon(a)===canon(b),idArr=a=>Array.isArray(a)&&a.length>0&&a.every(x=>x&&typeof x=="object"&&x.id);
+function m3arr(b,l,r){const mp=a=>new Map((a||[]).map(x=>[x.id,x])),B=mp(b),R=mp(r),out=[],seen=new Set();
+l.forEach(x=>{seen.add(x.id);if(!R.has(x.id)){if(B.has(x.id)&&eq(B.get(x.id),x))return;out.push(x)}else out.push(m3(B.get(x.id),x,R.get(x.id)))});
+r.forEach(x=>{if(seen.has(x.id))return;if(B.has(x.id)&&eq(B.get(x.id),x))return;out.push(x)});return out}
+function m3(b,l,r){if(eq(l,r))return l;if(eq(b,l))return r;if(eq(b,r))return l;
+if(l&&r&&typeof l=="object"&&typeof r=="object"){
+if(Array.isArray(l)&&Array.isArray(r))return(idArr(l)||idArr(r))?m3arr(Array.isArray(b)?b:[],l,r):l;
+if(!Array.isArray(l)&&!Array.isArray(r)){const o={},bb=(b&&typeof b=="object"&&!Array.isArray(b))?b:{};
+for(const k of new Set(Object.keys(l).concat(Object.keys(r)))){const inL=k in l,inR=k in r;
+if(inL&&inR)o[k]=m3(bb[k],l[k],r[k]);else if(inL){if(!(k in bb)||!eq(bb[k],l[k]))o[k]=l[k]}else{if(!(k in bb)||!eq(bb[k],r[k]))o[k]=r[k]}}return o}}
+return l}
+function setBase(o){BASE=cleanOf(o);try{localStorage.setItem("mt_base",JSON.stringify(BASE))}catch(e){}}
+function takeRemote(d){const ui=S.ui;Object.assign(S,d);S.ui=ui;delete S.dl;S._base=num(d._v);S._v=num(d._v);S._dirty=false;setBase(d);persistLocal()}
+function mergeRemote(d){if(!BASE){mergeIn(d);return}const M=m3(BASE,cleanOf(S),cleanOf(d)),ui=S.ui;for(const k of Object.keys(S))if(k[0]!="_"&&k!="ui"&&k!="dl"&&!(k in M))delete S[k];Object.assign(S,M);S.ui=ui}
+function save(){rev++;S._dirty=true;S._t=Date.now();persistLocal();clearTimeout(tm);$("#st").textContent="Saving…";tm=setTimeout(async()=>{$("#st").textContent=KEY?"Saved on this device. Syncing…":"Saved on this device only";if(KEY)await pushQ()},400)}
+async function pull(){const c=syncCfg();if(!c.url||!c.key)return"";try{const g=await(await fetch(c.url+"?token="+encodeURIComponent(c.key))).json();if(!g.ok)throw new Error(g.error);
+if(!g.data){if(hasData())await pushQ();else sm="Connected. Nothing saved in the Sheet yet.";return"nodata"}
+const d=JSON.parse(g.data);
+if(!hasData()){takeRemote(d);sm="Loaded the latest data from your Google Sheet.";return"replaced"}
+if(num(d._v)>num(S._base)){if(!S._dirty){takeRemote(d);sm="Updated from another device."}else{mergeRemote(d);S._base=num(d._v);setBase(d);persistLocal();sm="Merged changes from another device.";await pushQ()}return"updated"}
+sm="Connected. This device already has the latest data.";if(S._dirty)await pushQ();return"same"}catch(e){sm="Could not reach the Google Sheet ("+e.message+"). Using the data on this device.";return"error"}}
+async function push(){const c=syncCfg();if(!c.url||!c.key)return;try{const g=await(await fetch(c.url+"?token="+encodeURIComponent(c.key))).json();if(!g.ok)throw new Error(g.error);let nv=num(S._base);
+if(g.data){const d=JSON.parse(g.data);nv=Math.max(nv,num(d._v));if(num(d._v)>num(S._base)){mergeRemote(d);setBase(d);S._base=num(d._v);render()}}
+const r0=rev;S._v=nv+1;S._t=Date.now();const o=Object.assign({},S);delete o.ui;delete o._dirty;delete o.dl;
+const r=await fetch(c.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({token:c.key,data:JSON.stringify(o),sheets:sheetsOut()})}),j=await r.json();if(!j.ok)throw new Error(j.error);
+S._base=S._v;setBase(o);if(rev===r0)S._dirty=false;persistLocal();sm="Saved to your Google Sheet at "+new Date().toLocaleTimeString("en-IN");$("#st").textContent="Saved to your Google Sheet"}catch(e){sm="Sync failed ("+e.message+"). Your data is safe on this device and will be retried.";$("#st").textContent="Saved on this device only (sync failed, will retry)"}}
+async function refreshNow(){setTb("Refreshing…");if(!KEY){await unlock("Enter your secret key to refresh from the Sheet.");if(!KEY){render();return}}
+if(S._dirty)await pushQ();const before=canon(cleanOf(S)),res=await pull(),changed=canon(cleanOf(S))!==before;render();if(res!=="error"){sm=(changed?"Updated from another device":"Already up to date")+" · checked "+new Date().toLocaleTimeString("en-IN")}setTb(sm)}
+async function autoRefresh(){if(!KEY||arBusy||pushing||document.hidden)return;if(S._dirty){pushQ();return}
+const ae=document.activeElement;if(pg||(ae&&["INPUT","SELECT","TEXTAREA"].includes(ae.tagName)))return;
+arBusy=true;try{const before=canon(cleanOf(S));await pull();if(canon(cleanOf(S))!==before){render();$("#st").textContent="Updated from another device · "+new Date().toLocaleTimeString("en-IN")}}finally{arBusy=false}}
+setInterval(()=>autoRefresh(),25000);
+document.addEventListener("visibilitychange",()=>{if(document.hidden){if(S._dirty&&KEY)pushQ()}else autoRefresh()});
+if(window.addEventListener){window.addEventListener("focus",()=>autoRefresh());window.addEventListener("online",()=>autoRefresh())}
 function pk(it,p){return "pay|"+it.id+"|"+p.d+"|"+p.a}
 function mArr(l,r,dl,nest){l=(l||[]).filter(x=>!dl.has(x.id));r=r||[];const ids=new Set(l.map(x=>x.id));r.forEach(x=>{if(!dl.has(x.id)&&!ids.has(x.id))l.push(x)});if(nest)l.forEach(x=>{const y=r.find(z=>z.id===x.id);if(y)nest(x,y,dl)});return l}
 function nEv(x,y,dl){x.items=mArr(x.items,y.items,dl,(a,b)=>{const ks=new Set((a.pay||[]).map(p=>p.d+"|"+p.a));a.pay=(a.pay||[]).concat((b.pay||[]).filter(p=>!ks.has(p.d+"|"+p.a))).filter(p=>!dl.has(pk(a,p)))})}
@@ -165,16 +200,6 @@ function mergeIn(r){const dl=new Set((S.dl||[]).concat(r.dl||[]));S.dl=[...dl];
 ["m","bills","bk","ll"].forEach(k=>{S[k]=mObj(S[k]||{},r[k]||{},3)});
 ["gr","sr","cb"].forEach(k=>{if(!num(S[k]))S[k]=r[k]??S[k]});
 if(Array.isArray(r.b)){const b=S.b||[];S.b=r.b.map((v,i)=>b[i]!==undefined&&b[i]!==""?b[i]:v)}}
-async function pull(){const c=syncCfg();if(!c.url||!c.key)return;try{const g=await(await fetch(c.url+"?token="+encodeURIComponent(c.key))).json();if(!g.ok)throw new Error(g.error);
-if(!g.data){if(hasData())await pushQ();else sm="Connected. Nothing saved in the Sheet yet.";return}
-const d=JSON.parse(g.data);
-if(!hasData()){S=Object.assign(S,d);S._base=num(d._v);S._dirty=false;try{localStorage.setItem("mt",JSON.stringify(S))}catch(e){}sm="Loaded the latest data from your Google Sheet."}
-else if(num(d._v)>num(S._base)){mergeIn(d);S._base=num(d._v);try{localStorage.setItem("mt",JSON.stringify(S))}catch(e){}sm="Merged the latest data from your Google Sheet.";if(S._dirty)await pushQ()}
-else{sm="Connected. This device already has the latest data.";if(S._dirty)await pushQ()}}catch(e){sm="Could not reach the Google Sheet ("+e.message+"). Using the data on this device."}}
-async function push(){const c=syncCfg();if(!c.url||!c.key)return;try{const g=await(await fetch(c.url+"?token="+encodeURIComponent(c.key))).json();if(!g.ok)throw new Error(g.error);let nv=num(S._base);
-if(g.data){const d=JSON.parse(g.data);nv=Math.max(nv,num(d._v));if(num(d._v)>num(S._base)){mergeIn(d);render()}}
-const r0=rev;S._v=nv+1;S._t=Date.now();const r=await fetch(c.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({token:c.key,data:JSON.stringify(S),sheets:sheetsOut()})}),j=await r.json();if(!j.ok)throw new Error(j.error);
-S._base=S._v;if(rev===r0)S._dirty=false;try{localStorage.setItem("mt",JSON.stringify(S))}catch(e){}sm="Saved to your Google Sheet at "+new Date().toLocaleTimeString("en-IN");$("#st").textContent="Saved to your Google Sheet"}catch(e){sm="Sync failed ("+e.message+"). Your data is safe on this device.";$("#st").textContent="Saved on this device only (sync failed)"}}
 function sheetsOut(){try{return sheetsOut0()}catch(e){return{Sync_error:[["Could not build the summary tabs"],[String(e.message)]]}}}
 function sheetsOut0(){const nk=new Date().toISOString().slice(0,7),R=n=>Math.round(num(n)),P=(h,r)=>[h].concat(r);
 const M=Object.keys(S.m).sort().map(k=>{const t=mt(k);return[k,R(t.inc),R(t.cat),R(t.cc),R(t.e),R(t.emi),R(t.inv),R(t.sur),R(t.saved),Math.round(t.rate*1000)/10]});
