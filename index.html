@@ -76,7 +76,7 @@ details summary{cursor:pointer}
 .month-result{padding:14px}.month-result h2{margin-bottom:8px}
 .month-result .r{padding:8px 0;font-size:13px}
 @media(max-width:430px){.month-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.month-kpi{padding:9px 10px}.month-invest-grid{grid-template-columns:1fr}.month-entry{padding:12px}.income-line .am{flex-basis:38%;width:38%}.bill-line input{flex-basis:48%;width:48%}}
-.month-bill-status{margin-top:14px;padding-top:12px;border-top:1px solid var(--bd)}.month-bill-status h3{font-size:15px;margin:0}</style></head><body>
+.month-bill-status{margin-top:14px;padding-top:12px;border-top:1px solid var(--bd)}.month-bill-status h3{font-size:15px;margin:0}.month-card-row{display:grid;grid-template-columns:minmax(190px, .8fr) minmax(0,1.7fr);gap:12px;padding:10px 0;border-top:1px solid var(--bd)}.month-card-main{display:flex;align-items:center;gap:10px;min-width:0}.month-card-main b{min-width:100px}.month-card-main input{min-width:0;max-width:190px}.month-card-detail{display:flex;flex-wrap:wrap;align-items:center;gap:7px 12px;min-width:0}.cc-inline-item{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:12px}.month-card-detail>small{width:100%}@media(max-width:600px){.month-card-row{grid-template-columns:1fr;gap:6px}.month-card-main{justify-content:space-between}.month-card-main input{max-width:58%}}</style></head><body>
 <div class="scrim" id="scrim" onclick="menu(false)"></div>
 <aside class="menu" id="menu"><div class="mh"><span>💰 Money Tracker</span><button class="ib" onclick="menu(false)">✕</button></div><nav id="nav"></nav>
 <div class="mf"><button class="b ghost sm" onclick="exp()">⬇ Export backup</button><label class="b ghost sm" style="cursor:pointer;margin:0;text-align:center">⬆ Import backup<input type="file" accept=".json" style="display:none" onchange="imp(this)"></label><button class="b ghost sm" onclick="lockNow();menu(false)">🔒 Lock sync</button></div></aside>
@@ -103,8 +103,19 @@ function inp(p,l,type="number",ph="0"){return`<div><label>${l}</label><input dat
 const row=(a,b,c="")=>`<div class="r"><span>${a}</span><b class="${c}">${b}</b></div>`;
 function incBlock(){const r=(S.m[cur]||{}).inc||[],ns=[...new Set(Object.values(S.m).flatMap(x=>(x.inc||[]).map(i=>i.n)).filter(Boolean))];
 return`<section class="c month-entry"><div class="month-sec-head"><h2>Income</h2><span class="mu">By family member / source</span></div><datalist id="nm">${ns.map(n=>`<option value="${esc(n)}">`).join("")}</datalist>${r.map((x,i)=>`<div class="month-line income-line"><input class="nm" list="nm" data-p="m.inc.${i}.n" value="${esc(x.n)}" placeholder="Name / source" aria-label="Income source"><input class="am" data-p="m.inc.${i}.a" type="number" inputmode="decimal" placeholder="Amount ₹" value="${esc(x.a)}" aria-label="Income amount"><button class="x" onclick="delInc(${i})" aria-label="Remove income">×</button></div>`).join("")||'<p class="mu month-empty">No income entries yet.</p>'}<button class="b sm ghost" onclick="addInc()">＋ Add income</button></section>`}
-function spendBlock(){const none=t=>`<p class="mu month-empty">${t}</p>`;
-return`<section class="c month-entry"><div class="month-sec-head"><h2>Credit card bills</h2><span class="mu">Statement amount · ₹</span></div>${S.cards.map(c=>`<div class="month-line bill-line"><span class="month-name">${esc(c.name)}</span><input data-p="bill.${c.id}.s" type="number" inputmode="decimal" placeholder="Statement amount ₹" value="${esc(get("bill."+c.id+".s"))}" aria-label="${esc(c.name)} statement bill"></div>`).join("")||none("Add a card in the Credit cards tab first.")}${billsBlock()}</section><section class="c month-entry"><div class="month-sec-head"><h2>Investments this month</h2><span class="mu">SIPs fill in automatically</span></div><div class="month-invest-grid">${invRows()}</div></section>`}
+function spendBlock(){
+const none=t=>`<p class="mu month-empty">${t}</p>`;
+const cardRows=S.cards.map(c=>{
+ const bills=payables().filter(x=>x.c.id===c.id);
+ const details=bills.map(x=>{
+  const paid=!!x.b.pd;
+  return `<span class="cc-inline-item"><b>${esc(x.k)}</b> ${fm(x.b.pa||x.b.s)} · Due ${fmtD(x.due)} · ${paid?'<span class="pos">Paid '+fmtD(x.b.pdt||x.b.pm)+'</span>':'<span class="wn">Unpaid</span>'} ${paid?`<button class="x" style="font-size:12px" onclick="unpay('${x.k}','${c.id}')">Undo</button>`:`<button class="b sm" onclick="payBill('${x.k}','${c.id}')">Paid</button>`}</span>`;
+ }).join('');
+ const paidThis=bills.filter(x=>x.b.pd&&x.b.pm===cur).reduce((a,x)=>a+num(x.b.pa||x.b.s),0);
+ return `<div class="month-card-row"><div class="month-card-main"><b>${esc(c.name)}</b><input data-p="bill.${c.id}.s" type="number" inputmode="decimal" placeholder="This month statement ₹" value="${esc(get("bill."+c.id+".s"))}" aria-label="${esc(c.name)} statement bill"></div><div class="month-card-detail">${details||'<span class="mu">No statements recorded yet.</span>'}<small class="mu">Paid this month: ${fm(paidThis)}</small></div></div>`;
+}).join('');
+return `<section class="c month-entry"><div class="month-sec-head"><h2>Credit card bills</h2><span class="mu">Statement, due date and payment status</span></div>${cardRows||none("Add a card in the Credit cards tab first.")}</section><section class="c month-entry"><div class="month-sec-head"><h2>Investments this month</h2><span class="mu">SIPs fill in automatically</span></div><div class="month-invest-grid">${invRows()}</div></section>`
+}
 function goldVal(){return S.gold.reduce((a,x)=>a+gv1(x),0)}
 function gv1(x){const k=num(x.k)||24;return k>100?num(x.g)*k/999*num(S.sr):num(x.g)*k/24*num(S.gr)}
 const pl=x=>{const k=num(x.k)||24;return k>100?"Silver "+k:k+"K"};
@@ -400,8 +411,7 @@ function payRow(x,undo){const b=x.b,paid=b.pd;return`<div class="r"><span>${esc(
 function ccSection(){if(!S.cards.length)return"";const L=payables(),un=L.filter(x=>!x.b.pd),pd=L.filter(x=>x.b.pd).sort((a,b)=>(b.b.pdt||"")>(a.b.pdt||"")?1:-1).slice(0,3),tot=un.reduce((a,x)=>a+num(x.b.s),0),od=un.filter(x=>dayDiff(x.due)<0).length;
 return`<div class="c"><h2>Credit cards</h2><div class="g"><div class="k">To pay<b class="${od?"neg":""}">${fm(tot)}</b><small>${un.length} bill(s)${od?", "+od+" overdue":""}</small></div><div class="k">Total limit<b>${fm(S.cards.reduce((a,c)=>a+num(c.lim),0))}</b><small>${S.cards.length} card(s)</small></div></div>${un.map(x=>payRow(x)).join("")||'<p class="mu">No bills waiting for payment. Enter each statement on the This month tab.</p>'}${pd.length?'<small class="mu">Recently paid</small>'+pd.map(x=>payRow(x,true)).join(""):""}</div>`}
 function unpaidPrev(){return payables().filter(x=>!x.b.pd&&dayDiff(x.due)<0).length}
-function billsBlock(){if(!S.cards.length)return"";const L=payables(),dm=x=>x.due.slice(0,7),due=L.filter(x=>!x.b.pd&&dm(x)<=cur),paidNow=L.filter(x=>x.b.pd&&x.b.pm==cur),next=L.filter(x=>!x.b.pd&&dm(x)>cur);
-return`<div class="month-bill-status"><div class="month-sec-head"><h3>Payment status</h3><span class="mu">Due dates and payments</span></div><small class="mu">Each statement appears here in the month its due date falls. Paying a bill is not an extra expense; the statement is already counted in the month it is issued.</small>${due.map(x=>payRow(x)).join("")||'<p class="mu">No card bills due this month.</p>'}${paidNow.map(x=>payRow(x,true)).join("")}${next.length?'<small class="mu">Coming up</small>'+next.map(x=>`<div class="r"><span>${esc(x.c.name)} <small class="mu">${x.k} statement</small><br><small class="mu">Due ${fmtD(x.due)}</small></span><b>${fm(x.b.s)}</b></div>`).join(""):""}${row("Card bills paid this month",fm(paidIn(cur)))}<small class="mu">Include this amount in your bank account’s Money out.</small></div>`}
+function billsBlock(){return""}
 function closeDue(kind,x){
  if(kind=="inv")return x.mat||"";
  if(kind=="events")return x.date||"";
