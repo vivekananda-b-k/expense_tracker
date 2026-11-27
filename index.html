@@ -155,6 +155,51 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
  .pg table{display:block;overflow-x:auto;white-space:nowrap}
 }
 @media(max-width:370px){.pg>.c .f,.pg .f{grid-template-columns:1fr}.pg .g{grid-template-columns:1fr 1fr}}
+
+/* This Month page: tidy entry rows, clear grouping and consistent spacing */
+.pg:has(#monthKpis){max-width:900px}
+#monthKpis{grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-bottom:11px}
+#monthKpis .month-kpi{padding:10px 12px;border-radius:12px}
+#monthKpis .month-kpi span{font-size:11px;letter-spacing:.01em}
+#monthKpis .month-kpi b{font-size:clamp(15px,2vw,19px);line-height:1.25}
+.month-entry{padding:14px 15px!important;margin-bottom:10px!important}
+.month-sec-head{align-items:center;margin-bottom:11px}
+.month-sec-head>div{min-width:0}
+.month-sec-head .mu{display:block;margin-top:2px;text-align:left;font-size:11px}
+.month-income-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(190px,.46fr);gap:12px;align-items:end;padding:10px 0;border-top:1px solid var(--bd)}
+.month-income-main{display:grid;grid-template-columns:minmax(0,1fr) minmax(130px,.55fr) 32px;gap:8px;align-items:center;min-width:0}
+.month-income-main input,.month-income-account select{width:100%;min-width:0;min-height:40px;padding:8px 10px;font-size:14px}
+.month-income-main .x{min-width:30px;min-height:34px}
+.month-income-account label,.month-account-label{font-size:10.5px;margin:0 0 4px}
+.month-income-account select{font-size:13px}
+.month-invest-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.month-invest-item{display:grid;grid-template-columns:minmax(0,1fr);gap:5px;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);min-width:0}
+.month-invest-item label{font-size:11px;font-weight:600;color:var(--tx);margin:0}
+.month-invest-item input,.month-invest-item select{min-width:0;width:100%;min-height:38px;padding:7px 9px;font-size:13px}
+.month-invest-item .month-account-label{font-weight:500;color:var(--mu);margin-top:2px}
+.month-add-invest{align-content:center;border-style:dashed;background:transparent}
+.month-card-row{grid-template-columns:minmax(0,1fr);gap:8px;padding:12px 0}
+.month-card-main{display:grid;grid-template-columns:minmax(100px,.6fr) minmax(150px,.7fr);gap:9px;align-items:center}
+.month-card-main b{min-width:0;font-size:13px}
+.month-card-main input{max-width:none;width:100%;min-height:39px;padding:8px 10px;font-size:13px}
+.month-card-detail{padding-left:2px;gap:7px 10px}
+.month-card-detail .cc-inline-item{padding:5px 7px;background:var(--bg);border-radius:8px}
+.month-result{margin-top:2px!important;padding:14px 16px!important}
+.month-result .r{padding:8px 0;font-size:13px}
+@media(max-width:620px){
+ #monthKpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .month-entry{padding:12px!important}
+ .month-income-row{grid-template-columns:1fr;gap:7px;padding:10px 0}
+ .month-income-main{grid-template-columns:minmax(0,1fr) minmax(110px,.55fr) 30px;gap:6px}
+ .month-income-main input,.month-income-account select{font-size:14px;min-height:42px}
+ .month-income-account{display:grid;grid-template-columns:100px minmax(0,1fr);align-items:center;gap:8px}
+ .month-income-account label{margin:0}
+ .month-invest-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .month-invest-item{padding:9px}
+ .month-card-main{grid-template-columns:minmax(0,1fr) minmax(130px,.9fr)}
+}
+@media(max-width:380px){.month-invest-grid{grid-template-columns:1fr}.month-income-main{grid-template-columns:minmax(0,1fr) minmax(100px,.65fr) 28px}}
+
 </style></head><body>
 <div class="scrim" id="scrim" onclick="requestMenuClose()"></div>
 <aside class="menu" id="menu"><div class="mh"><span>💰 Money Tracker</span><button class="ib" onclick="requestMenuClose()">✕</button></div><nav id="nav"></nav>
@@ -182,7 +227,7 @@ const dt=t=>t.toLocaleDateString("en-IN",{day:"numeric",month:"short"});
 function inp(p,l,type="number",ph="0"){return`<div><label>${l}</label><input data-p="${p}" type="${type}" inputmode="${type=="number"?"decimal":"text"}" placeholder="${ph}" value="${esc(get(p))}"></div>`}
 const row=(a,b,c="")=>`<div class="r"><span>${a}</span><b class="${c}">${b}</b></div>`;
 function incBlock(){const r=(S.m[cur]||{}).inc||[],ns=[...new Set(Object.values(S.m).flatMap(x=>(x.inc||[]).map(i=>i.n)).filter(Boolean))];
-return`<section class="c month-entry"><div class="month-sec-head"><h2>Income</h2><span class="mu">By family member / source</span></div><datalist id="nm">${ns.map(n=>`<option value="${esc(n)}">`).join("")}</datalist>${r.map((x,i)=>`<div class="month-line income-line"><input class="nm" list="nm" data-p="m.inc.${i}.n" value="${esc(x.n)}" placeholder="Name / source" aria-label="Income source"><input class="am" data-p="m.inc.${i}.a" type="number" inputmode="decimal" placeholder="Amount ₹" value="${esc(x.a)}" aria-label="Income amount"><button class="x" onclick="delInc(${i})" aria-label="Remove income">×</button><select data-p="m.inc.${i}.acct" aria-label="Income credited to" style="flex:1 0 100%;width:100%;font-size:12px;padding:7px 9px">${accOpts(x.acct||"")}</select></div>`).join("")||'<p class="mu month-empty">No income entries yet.</p>'}<button class="b sm ghost" onclick="addInc()">＋ Add income</button></section>`}
+return`<section class="c month-entry month-income-card"><div class="month-sec-head"><div><h2>Income</h2><span class="mu">Record each income and where it was credited</span></div><button class="b sm ghost" onclick="addInc()">＋ Add income</button></div><datalist id="nm">${ns.map(n=>`<option value="${esc(n)}">`).join("")}</datalist>${r.map((x,i)=>`<div class="month-income-row"><div class="month-income-main"><input class="nm" list="nm" data-p="m.inc.${i}.n" value="${esc(x.n)}" placeholder="Income source / person" aria-label="Income source"><input class="am" data-p="m.inc.${i}.a" type="number" inputmode="decimal" placeholder="Amount (₹)" value="${esc(x.a)}" aria-label="Income amount"><button class="x" onclick="delInc(${i})" aria-label="Remove income">×</button></div><div class="month-income-account"><label>Credited to bank account</label><select data-p="m.inc.${i}.acct" aria-label="Income credited to">${accOpts(x.acct||"")}</select></div></div>`).join("")||'<p class="mu month-empty">No income added. Select “Add income” to record salary or other credits.</p>'}</section>`}
 function spendBlock(){
 const none=t=>`<p class="mu month-empty">${t}</p>`;
 const cardRows=S.cards.map(c=>{
@@ -203,7 +248,7 @@ const bar1=(n,a,b)=>{const p=b?Math.min(100,a/b*100):0,o=a>b&&b;return`<div clas
 const pmt=(P,i,k)=>k<=0?P:(i?P*i/(1-Math.pow(1+i,-k)):P/k);
 function invRows(){const x=S.m[cur]||{},sh=x.sh||[];if(!S.inv.length)return'<p class="mu">Add investments in the Investments tab first.</p>';
 const shown=S.inv.filter(z=>(z.mode=="Monthly SIP"&&(!z.sm||cur>=z.sm))||num((x.iv||{})[z.id])!=0||sh.includes(z.id)),rest=S.inv.filter(z=>!shown.includes(z));
-return shown.map(z=>`<div><label>${esc(z.t+" · "+z.name)}</label><input data-p="m.iv.${z.id}" type="number" inputmode="decimal" placeholder="${z.mode=="Monthly SIP"?num(z.sip):"0"}" value="${esc(get("m.iv."+z.id))}"><select data-p="m.ia.${z.id}" aria-label="Paid from account" style="margin-top:6px;font-size:13px">${accOpts(get("m.ia."+z.id)||z.acct||"")}</select></div>`).join("")+(rest.length?`<div><label>Other investment this month</label><select id="addiv" onchange="showInv()"><option value="">+ Add another…</option>${rest.map(z=>`<option value="${z.id}">${esc(z.t+" · "+z.name)}</option>`).join("")}</select></div>`:"")}
+return shown.map(z=>`<div class="month-invest-item"><label>${esc(z.t+" · "+z.name)}</label><input data-p="m.iv.${z.id}" type="number" inputmode="decimal" placeholder="${z.mode=="Monthly SIP"?num(z.sip):"Amount (₹)"}" value="${esc(get("m.iv."+z.id))}"><label class="month-account-label">Paid from</label><select data-p="m.ia.${z.id}" aria-label="Paid from account">${accOpts(get("m.ia."+z.id)||z.acct||"")}</select></div>`).join("")+(rest.length?`<div class="month-invest-item month-add-invest"><label>Add another investment</label><select id="addiv" onchange="showInv()"><option value="">＋ Choose investment…</option>${rest.map(z=>`<option value="${z.id}">${esc(z.t+" · "+z.name)}</option>`).join("")}</select></div>`:"")}
 function showInv(){const id=v("addiv");if(!id)return;const m=S.m[cur]??={};(m.sh??=[]).push(id);save();render()}
 function dyeHtml(a,r,y,io){const i=r/1200,n=Math.round(y*12);if(!a||n<=io||io<0)return'<p class="mu">Check the amount, tenure and interest-only months.</p>';
 const reg=pmt(a,i,n),ip=a*i,post=pmt(a,i,n-io),totD=ip*io+post*(n-io),totR=reg*n;
